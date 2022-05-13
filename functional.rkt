@@ -32,6 +32,6 @@
                                          #:kill-older-than proc-timeout-secs))
 
 (module+ test
-  (require "test-common.rkt")
+  (require "private/test-common.rkt")
 
   (test-process-queue-basics make-process-queue))

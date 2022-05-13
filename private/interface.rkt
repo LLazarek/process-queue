@@ -38,14 +38,14 @@
          (for-syntax racket/syntax))
 
 (struct process-queue (empty?
-                   enqueue
-                   wait
-                   active-count
-                   waiting-count
-                   get-data
-                   set-data
+                       enqueue
+                       wait
+                       active-count
+                       waiting-count
+                       get-data
+                       set-data
 
-                   data))
+                       data))
 
 (struct process-info (data ctl will) #:transparent)
 (define process-will/c (process-queue? process-info? . -> . process-queue?))

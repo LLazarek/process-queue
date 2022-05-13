@@ -298,7 +298,7 @@
                                  (match i
                                    [2 (enq-proc! q* 4)]
                                    [else q*]))))))
-            (define q (for/fold ([q (make-process-Q 3)])
+            (define q (for/fold ([q (make-process-queue 3)])
                                 ([i (in-range 4)])
                         (enq-proc! q i)))
             (define q* (wait q)))
