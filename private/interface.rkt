@@ -2,7 +2,7 @@
 
 (provide (except-out (struct-out process-queue)
                      process-queue-empty?
-                     process-queue-enq
+                     process-queue-enqueue
                      process-queue-wait
                      process-queue-active-count
                      process-queue-waiting-count
@@ -13,8 +13,8 @@
          (contract-out
           [rename short:process-queue-empty? process-queue-empty?
                   empty?/c]
-          [rename short:process-queue-enq process-queue-enq
-                  enq/c]
+          [rename short:process-queue-enqueue process-queue-enqueue
+                  enqueue/c]
           [rename short:process-queue-wait process-queue-wait
                   wait/c]
           [rename short:process-queue-active-count process-queue-active-count
@@ -38,7 +38,7 @@
          (for-syntax racket/syntax))
 
 (struct process-queue (empty?
-                   enq
+                   enqueue
                    wait
                    active-count
                    waiting-count
@@ -56,10 +56,10 @@
              [will process-will/c]))
 
 (define empty?/c (process-queue? . -> . boolean?))
-(define enq/c ({process-queue? (-> process-info/c)}
-               {any/c}
-               . ->* .
-               process-queue?))
+(define enqueue/c ({process-queue? (-> process-info/c)}
+                   {any/c}
+                   . ->* .
+                   process-queue?))
 (define wait/c (process-queue? . -> . (and/c process-queue? process-queue-empty?)))
 (define active-count/c (process-queue? . -> . natural?))
 (define waiting-count/c (process-queue? . -> . natural?))
@@ -69,7 +69,7 @@
 (define (process-queue/c data/c)
   (struct/dc process-queue
              [empty?         empty?/c]
-             [enq            enq/c]
+             [enqueue        enqueue/c]
              [wait           wait/c]
              [active-count   active-count/c]
              [waiting-count  waiting-count/c]
@@ -95,7 +95,7 @@
 
 (define-method-shorthands short:
   [empty?
-   enq
+   enqueue
    wait
    active-count
    waiting-count
