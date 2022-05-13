@@ -1,12 +1,12 @@
 #lang at-exp racket
 
 (provide (contract-out
-          [make-process-Q
+          [make-process-queue
            ({(and/c natural? (>/c 0))}
             {any/c}
             . ->* .
-            (and/c process-Q?
-                   process-Q-empty?))])
+            (and/c process-queue?
+                   process-queue-empty?))])
          (all-from-out "private/interface.rkt"))
 
 (require "private/interface.rkt"
@@ -14,7 +14,7 @@
          "private/common.rkt"
          data/queue)
 
-(struct imperative-process-Q process-Q (active-limit
+(struct imperative-process-queue process-queue (active-limit
                                         active
                                         waiting))
 
@@ -31,56 +31,56 @@
 ;;
 ;; At least for my current use-case, neither of these are true so I'm going to
 ;; drop it for now.
-(define (make-process-Q process-limit [data-init #f])
+(define (make-process-queue process-limit [data-init #f])
   (define active-set (mutable-set))
-  (define waiting-Q (make-queue))
-  (imperative-process-Q imperative-process-Q-empty?
+  (define waiting-queue (make-queue))
+  (imperative-process-queue imperative-process-queue-empty?
                         enq-process!
                         wait
-                        imperative-process-Q-active-count
-                        imperative-process-Q-waiting-count
-                        imperative-process-Q-get-mutable-data
-                        imperative-process-Q-set-mutable-data!
+                        imperative-process-queue-active-count
+                        imperative-process-queue-waiting-count
+                        imperative-process-queue-get-mutable-data
+                        imperative-process-queue-set-mutable-data!
 
                         (box data-init)
 
                         process-limit
                         active-set
-                        waiting-Q))
+                        waiting-queue))
 
-(define (imperative-process-Q-get-mutable-data q)
-  (unbox (process-Q-data q)))
+(define (imperative-process-queue-get-mutable-data q)
+  (unbox (process-queue-data q)))
 
-(define (imperative-process-Q-set-mutable-data! q v)
-  (set-box! (process-Q-data q) v)
+(define (imperative-process-queue-set-mutable-data! q v)
+  (set-box! (process-queue-data q) v)
   q)
 
-(define imperative-process-Q-active-count
-  (compose1 set-count imperative-process-Q-active))
-(define imperative-process-Q-waiting-count
-  (compose1 queue-length imperative-process-Q-waiting))
+(define imperative-process-queue-active-count
+  (compose1 set-count imperative-process-queue-active))
+(define imperative-process-queue-waiting-count
+  (compose1 queue-length imperative-process-queue-waiting))
 
-(define (imperative-process-Q-empty? q)
-  (and (zero? (imperative-process-Q-active-count q))
-       (queue-empty? (imperative-process-Q-waiting q))))
+(define (imperative-process-queue-empty? q)
+  (and (zero? (imperative-process-queue-active-count q))
+       (queue-empty? (imperative-process-queue-waiting q))))
 
 ;; start-process should return a process-info?
 (define (enq-process! q start-process)
-  (enqueue! (imperative-process-Q-waiting q) start-process)
+  (enqueue! (imperative-process-queue-waiting q) start-process)
   (sweep-dead/spawn-new-processes! q)
   q)
 
-(define (wait q #:delay [delay (current-process-Q-polling-period-seconds)])
+(define (wait q #:delay [delay (current-process-queue-polling-period-seconds)])
   (let loop ()
     (sleep delay)
     (match q
-      [(? imperative-process-Q-empty?) q]
+      [(? imperative-process-queue-empty?) q]
       [q
        (sweep-dead/spawn-new-processes! q)
        (loop)])))
 
 (define (sweep-dead/spawn-new-processes! q)
-  (define active-set (imperative-process-Q-active q))
+  (define active-set (imperative-process-queue-active q))
   (define dead-set
     (for/set (;; Avoiding `in-mutable-set` in case modification messes with it
               [info (in-list (set->list active-set))]
@@ -92,10 +92,10 @@
   (for ([dead-proc (in-set dead-set)])
     ((process-info-will dead-proc) q dead-proc))
   (define free-spawning-capacity
-    (- (imperative-process-Q-active-limit q)
-       (imperative-process-Q-active-count q)))
+    (- (imperative-process-queue-active-limit q)
+       (imperative-process-queue-active-count q)))
   (define procs-waiting-to-spawn
-    (imperative-process-Q-waiting-count q))
+    (imperative-process-queue-waiting-count q))
   (define procs-to-spawn
     (if (< free-spawning-capacity procs-waiting-to-spawn)
         free-spawning-capacity
@@ -104,18 +104,18 @@
     (spawn-next-process! q)))
 
 (define (spawn-next-process! q)
-  #;(->i ([q imperative-process-Q?])
+  #;(->i ([q imperative-process-queue?])
        #:pre/desc {q}
-       (or (and (not (zero? (imperative-process-Q-waiting-count q)))
-                (>= (- (imperative-process-Q-active-limit q)
-                       (imperative-process-Q-active-count q))
+       (or (and (not (zero? (imperative-process-queue-waiting-count q)))
+                (>= (- (imperative-process-queue-active-limit q)
+                       (imperative-process-queue-active-count q))
                     1))
            "q must be able to spawn another process")
        any)
 
-  (define start-next-process (dequeue! (imperative-process-Q-waiting q)))
+  (define start-next-process (dequeue! (imperative-process-queue-waiting q)))
   (define the-process-info (start-next-process))
-  (set-add! (imperative-process-Q-active q)
+  (set-add! (imperative-process-queue-active q)
             the-process-info))
 
 
@@ -144,7 +144,7 @@
 
   (test-begin
     #:name basic
-    (ignore (define q (make-process-Q 1))
+    (ignore (define q (make-process-queue 1))
             (define will-called? (box #f))
             (define q1 (enq-process! q
                                      (λ _
@@ -154,22 +154,22 @@
                                           (set-box! will-called? #t)
                                           (close-process-ports! info)
                                           q))))))
-    (test-equal? (process-Q-get-data q) #f)
+    (test-equal? (process-queue-get-data q) #f)
 
     (test-eq? q q1)
-    (test-= (imperative-process-Q-waiting-count q) 0)
+    (test-= (imperative-process-queue-waiting-count q) 0)
     (not (unbox will-called?))
-    (test-= (imperative-process-Q-active-count q) 1)
+    (test-= (imperative-process-queue-active-count q) 1)
 
     (ignore (define q1* (wait q1)))
     (test-eq? q q1*)
-    (test-= (imperative-process-Q-waiting-count q) 0)
+    (test-= (imperative-process-queue-waiting-count q) 0)
     (unbox will-called?)
-    (test-= (imperative-process-Q-active-count q) 0))
+    (test-= (imperative-process-queue-active-count q) 0))
 
   (test-begin
     #:name will
-    (ignore (define q (make-process-Q 1))
+    (ignore (define q (make-process-queue 1))
             (define will-1-called? (box #f))
             (define will-2-called? (box #f))
             (define will-3-called? (box #f))
@@ -199,23 +199,23 @@
                                                 q**))))))))))
     (test-eq? q q1)
     (test-eq? q q2)
-    (test-= (imperative-process-Q-active-count q) 1)
-    (test-= (imperative-process-Q-waiting-count q) 1)
+    (test-= (imperative-process-queue-active-count q) 1)
+    (test-= (imperative-process-queue-waiting-count q) 1)
     (not (unbox will-1-called?))
     (not (unbox will-2-called?))
     (not (unbox will-3-called?))
 
     (ignore (define q2* (wait q2)))
     (test-eq? q q2*)
-    (test-= (imperative-process-Q-waiting-count q) 0)
-    (test-= (imperative-process-Q-active-count q) 0)
+    (test-= (imperative-process-queue-waiting-count q) 0)
+    (test-= (imperative-process-queue-active-count q) 0)
     (unbox will-1-called?)
     (unbox will-2-called?)
     (unbox will-3-called?))
 
   (test-begin
     #:name a-little-complex
-    (ignore (define q (make-process-Q 2))
+    (ignore (define q (make-process-queue 2))
             (define wills-called? (vector #f #f #f #f #f))
             (define (will-for i)
               (λ (the-q* info)
@@ -243,20 +243,20 @@
                    (simple-process @~a{echo @i}
                                    (will-for i)))))))
     (test-eq? q the-q)
-    (test-= (imperative-process-Q-active-count the-q) 2)
-    (test-= (imperative-process-Q-waiting-count the-q) 1)
+    (test-= (imperative-process-queue-active-count the-q) 2)
+    (test-= (imperative-process-queue-waiting-count the-q) 1)
 
     (ignore (define the-q* (wait the-q)))
     (test-eq? q the-q*)
-    (test-= (imperative-process-Q-active-count q) 0)
-    (test-= (imperative-process-Q-waiting-count q) 0)
+    (test-= (imperative-process-queue-active-count q) 0)
+    (test-= (imperative-process-queue-waiting-count q) 0)
     (for/and/test ([i (in-range 5)])
                   (test-equal? (vector-ref wills-called? i)
                                (~a i "\n"))))
 
   (test-begin
     #:name wait
-    (imperative-process-Q-empty? (wait (make-process-Q 2))))
+    (imperative-process-queue-empty? (wait (make-process-queue 2))))
 
   (test-begin
     #:name process-limit
@@ -304,16 +304,16 @@
             (define q* (wait q)))
     (extend-test-message
      (not (findf (>/c 3) (unbox active-history)))
-     "process-Q spawns active processes exceeding the process limit")
+     "process-queue spawns active processes exceeding the process limit")
     (extend-test-message
      (findf (=/c 3) (unbox active-history))
-     "process-Q doesn't spawns active processes up to the process limit"))
+     "process-queue doesn't spawns active processes up to the process limit"))
 
   (test-begin
       #:name wait/long-running-procs
       (ignore
        (define done-vec (vector #f #f #f #f))
-       (define q (for/fold ([q (make-process-Q 2)])
+       (define q (for/fold ([q (make-process-queue 2)])
                            ([i (in-range 4)])
                    (enq-process! q
                                  (λ _
@@ -324,5 +324,5 @@
                                       (vector-set! done-vec i #t)
                                       q*))))))
        (define q/done (wait q)))
-      (imperative-process-Q-empty? q/done)
+      (imperative-process-queue-empty? q/done)
       (andmap identity (vector->list done-vec))))

@@ -1,25 +1,25 @@
 #lang at-exp racket
 
-(define Q? any/c)
+(define queue? any/c)
 (provide (contract-out
-          [make-generic-functional-process-Q
+          [make-generic-functional-process-queue
            ({(and/c natural? (>/c 0))
-             (-> Q?)
-             (-> Q? any/c any/c Q?)
-             (-> Q? (list/c Q? any/c))}
+             (-> queue?)
+             (-> queue? any/c any/c queue?)
+             (-> queue? (list/c queue? any/c))}
             {any/c
              #:kill-older-than (or/c positive-integer? #f)}
             . ->* .
-            (and/c process-Q?
-                   generic-functional-process-Q?
-                   process-Q-empty?))]
-          [generic-functional-process-Q? (any/c . -> . boolean?)]))
+            (and/c process-queue?
+                   generic-functional-process-queue?
+                   process-queue-empty?))]
+          [generic-functional-process-queue? (any/c . -> . boolean?)]))
 
 (require "interface.rkt"
          (submod "interface.rkt" internal)
          "common.rkt")
 
-(struct generic-functional-process-Q process-Q (active-limit
+(struct generic-functional-process-queue process-queue (active-limit
 
                                                 active
                                                 active-count
@@ -29,67 +29,67 @@
 
                                                 timeout
 
-                                                enQ ;; Q? any/c any/c -> Q?
-                                                deQ ;; Q? -> (list/c Q? any/c)
+                                                enqueue ;; queue? any/c any/c -> queue?
+                                                dequeue ;; queue? -> (list/c queue? any/c)
                                                 ))
 
-(define (generic-functional-process-Q-set-data q v)
-  (struct-copy generic-functional-process-Q q
-               [data #:parent process-Q v]))
+(define (generic-functional-process-queue-set-data q v)
+  (struct-copy generic-functional-process-queue q
+               [data #:parent process-queue v]))
 
 (struct process (thunk))
 
 (struct active-process (info start-time))
 
-(define (make-generic-functional-process-Q process-limit
-                                           make-Q ;; -> Q?
-                                           enQ ;; Q? any/c any/c -> Q?
-                                           deQ ;; Q? -> (list/c Q? any/c)
+(define (make-generic-functional-process-queue process-limit
+                                           make-queue ;; -> queue?
+                                           enqueue ;; queue? any/c any/c -> queue?
+                                           dequeue ;; queue? -> (list/c queue? any/c)
                                            [data-init #f]
                                            ;; These timeouts are enforced on a best-effort basis.
                                            ;; I.e. whenever we "notice" a process that has exceeded its timeout,
                                            ;; we kill it. But no guarantees about how quickly we will notice.
                                            #:kill-older-than [proc-timeout-secs #f])
-  (generic-functional-process-Q generic-functional-process-Q-empty?
+  (generic-functional-process-queue generic-functional-process-queue-empty?
                                 enq-process
                                 wait
-                                generic-functional-process-Q-active-count
-                                generic-functional-process-Q-waiting-count
-                                process-Q-data
-                                generic-functional-process-Q-set-data
+                                generic-functional-process-queue-active-count
+                                generic-functional-process-queue-waiting-count
+                                process-queue-data
+                                generic-functional-process-queue-set-data
 
                                 data-init
 
                                 process-limit
                                 empty
                                 0
-                                (make-Q)
+                                (make-queue)
                                 0
 
                                 proc-timeout-secs
 
-                                enQ
-                                deQ))
+                                enqueue
+                                dequeue))
 
-(define (generic-functional-process-Q-empty? q)
-  (and (zero? (generic-functional-process-Q-active-count q))
-       (zero? (generic-functional-process-Q-waiting-count q))))
+(define (generic-functional-process-queue-empty? q)
+  (and (zero? (generic-functional-process-queue-active-count q))
+       (zero? (generic-functional-process-queue-waiting-count q))))
 
 ;; start-process should return a process-info?
 (define (enq-process q start-process [extra-arg #f])
-  (define enQ (generic-functional-process-Q-enQ q))
+  (define enqueue (generic-functional-process-queue-enqueue q))
   (sweep-dead/spawn-new-processes
-   (struct-copy generic-functional-process-Q q
-                [waiting (enQ (generic-functional-process-Q-waiting q)
+   (struct-copy generic-functional-process-queue q
+                [waiting (enqueue (generic-functional-process-queue-waiting q)
                               (process start-process)
                               extra-arg)]
-                [waiting-count (add1 (generic-functional-process-Q-waiting-count q))])))
+                [waiting-count (add1 (generic-functional-process-queue-waiting-count q))])))
 
-(define (wait q #:delay [delay (current-process-Q-polling-period-seconds)])
+(define (wait q #:delay [delay (current-process-queue-polling-period-seconds)])
   (let loop ([current-q q])
     (define new-q (sweep-dead/spawn-new-processes current-q))
     (match new-q
-      [(struct* generic-functional-process-Q
+      [(struct* generic-functional-process-queue
                 ([active-count  0]
                  [waiting-count 0]))
        new-q]
@@ -103,9 +103,9 @@
     (partition (λ (active-proc)
                  (define ctl (process-info-ctl (active-process-info active-proc)))
                  (equal? (ctl 'status) 'running))
-               (generic-functional-process-Q-active q)))
+               (generic-functional-process-queue-active q)))
   (define dead-proc-infos (map active-process-info dead))
-  (define temp-q (struct-copy generic-functional-process-Q q
+  (define temp-q (struct-copy generic-functional-process-queue q
                               [active still-active]
                               [active-count (length still-active)]))
   (define temp-q+wills
@@ -113,10 +113,10 @@
               ([dead-proc-info (in-list dead-proc-infos)])
       ((process-info-will dead-proc-info) temp-q+wills dead-proc-info)))
   (define free-spawning-capacity
-    (- (generic-functional-process-Q-active-limit temp-q+wills)
-       (generic-functional-process-Q-active-count temp-q+wills)))
+    (- (generic-functional-process-queue-active-limit temp-q+wills)
+       (generic-functional-process-queue-active-count temp-q+wills)))
   (define procs-waiting-to-spawn
-    (generic-functional-process-Q-waiting-count temp-q+wills))
+    (generic-functional-process-queue-waiting-count temp-q+wills))
   (define procs-to-spawn
     (if (< free-spawning-capacity procs-waiting-to-spawn)
         free-spawning-capacity
@@ -127,18 +127,18 @@
 
 (define (spawn-next-process q)
   (match q
-    [(struct* generic-functional-process-Q
+    [(struct* generic-functional-process-queue
               ([active-limit limit]
                [active active]
                [active-count active-count]
                [waiting waiting]
                [waiting-count waiting-count]))
-     (define data (process-Q-data q))
-     (define deQ (generic-functional-process-Q-deQ q))
-     (match-define (list new-waiting deQed) (deQ waiting))
-     (define start-process (process-thunk deQed))
+     (define data (process-queue-data q))
+     (define dequeue (generic-functional-process-queue-dequeue q))
+     (match-define (list new-waiting dequeued) (dequeue waiting))
+     (define start-process (process-thunk dequeued))
      (define the-process-info (start-process))
-     (struct-copy generic-functional-process-Q q
+     (struct-copy generic-functional-process-queue q
                   [active (cons (active-process the-process-info
                                                 (current-seconds))
                                 active)]
@@ -147,10 +147,10 @@
                   [waiting-count (sub1 waiting-count)])]))
 
 (define (kill-timed-out-active-processes! q)
-  (define timeout (generic-functional-process-Q-timeout q))
+  (define timeout (generic-functional-process-queue-timeout q))
   (when timeout
     (define now (current-seconds))
-    (for ([an-active-process (in-list (generic-functional-process-Q-active q))])
+    (for ([an-active-process (in-list (generic-functional-process-queue-active q))])
       (define lifespan (- now (active-process-start-time an-active-process)))
       (when (> lifespan timeout)
         (define ctl (process-info-ctl (active-process-info an-active-process)))
@@ -160,7 +160,7 @@
 (module+ test
   (require ruinit
            (prefix-in r/sys: racket/system)
-           (prefix-in PQ: pfds/heap/pairing))
+           (prefix-in Pqueue: pfds/heap/pairing))
 
   (struct simple-process-info (stdout stdin pid stderr)
     #:transparent)
@@ -184,7 +184,7 @@
 
   (test-begin
     #:name basic
-    (ignore (define q (make-generic-functional-process-Q 1
+    (ignore (define q (make-generic-functional-process-queue 1
                                                          (thunk empty)
                                                          (λ (q v ignored) (append q (list v)))
                                                          (λ (q) (list (rest q) (first q)))))
@@ -197,20 +197,20 @@
                                          (set-box! will-called? #t)
                                          (close-process-ports! info)
                                          q))))))
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
     (not (unbox will-called?))
-    (test-= (generic-functional-process-Q-active-count q1) 1)
+    (test-= (generic-functional-process-queue-active-count q1) 1)
 
     (ignore (define q1* (wait q1)))
-    (test-= (generic-functional-process-Q-waiting-count q1*) 0)
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-waiting-count q1*) 0)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
     (unbox will-called?)
-    (test-= (generic-functional-process-Q-active-count q1*) 0)
-    (test-= (generic-functional-process-Q-active-count q1) 1))
+    (test-= (generic-functional-process-queue-active-count q1*) 0)
+    (test-= (generic-functional-process-queue-active-count q1) 1))
 
   (test-begin
     #:name will
-    (ignore (define q (make-generic-functional-process-Q 1
+    (ignore (define q (make-generic-functional-process-queue 1
                                                          (thunk empty)
                                                          (λ (q v ignored) (append q (list v)))
                                                          (λ (q) (list (rest q) (first q)))))
@@ -241,28 +241,28 @@
                                                (set-box! will-3-called? #t)
                                                (close-process-ports! info)
                                                q**))))))))))
-    (test-= (generic-functional-process-Q-active-count q1) 1)
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
-    (test-= (generic-functional-process-Q-active-count q2) 1)
-    (test-= (generic-functional-process-Q-waiting-count q2) 1)
+    (test-= (generic-functional-process-queue-active-count q1) 1)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-active-count q2) 1)
+    (test-= (generic-functional-process-queue-waiting-count q2) 1)
     (not (unbox will-1-called?))
     (not (unbox will-2-called?))
     (not (unbox will-3-called?))
 
     (ignore (define q2* (wait q2)))
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
-    (test-= (generic-functional-process-Q-waiting-count q2) 1)
-    (test-= (generic-functional-process-Q-waiting-count q2*) 0)
-    (test-= (generic-functional-process-Q-active-count q1) 1)
-    (test-= (generic-functional-process-Q-active-count q2) 1)
-    (test-= (generic-functional-process-Q-active-count q2*) 0)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-waiting-count q2) 1)
+    (test-= (generic-functional-process-queue-waiting-count q2*) 0)
+    (test-= (generic-functional-process-queue-active-count q1) 1)
+    (test-= (generic-functional-process-queue-active-count q2) 1)
+    (test-= (generic-functional-process-queue-active-count q2*) 0)
     (unbox will-1-called?)
     (unbox will-2-called?)
     (unbox will-3-called?))
 
   (test-begin
     #:name a-little-complex
-    (ignore (define q (make-generic-functional-process-Q 2
+    (ignore (define q (make-generic-functional-process-queue 2
                                                          (thunk empty)
                                                          (λ (q v ignored) (append q (list v)))
                                                          (λ (q) (list (rest q) (first q)))))
@@ -292,21 +292,21 @@
                  (λ _
                    (simple-process @~a{echo @i}
                                    (will-for i)))))))
-    (test-= (generic-functional-process-Q-active-count the-q) 2)
-    (test-= (generic-functional-process-Q-waiting-count the-q) 1)
+    (test-= (generic-functional-process-queue-active-count the-q) 2)
+    (test-= (generic-functional-process-queue-waiting-count the-q) 1)
 
     (ignore (define the-q* (wait the-q)))
-    (test-= (generic-functional-process-Q-active-count the-q) 2)
-    (test-= (generic-functional-process-Q-waiting-count the-q) 1)
-    (test-= (generic-functional-process-Q-active-count the-q*) 0)
-    (test-= (generic-functional-process-Q-waiting-count the-q*) 0)
+    (test-= (generic-functional-process-queue-active-count the-q) 2)
+    (test-= (generic-functional-process-queue-waiting-count the-q) 1)
+    (test-= (generic-functional-process-queue-active-count the-q*) 0)
+    (test-= (generic-functional-process-queue-waiting-count the-q*) 0)
     (for/and/test ([i (in-range 5)])
                   (test-equal? (vector-ref wills-called? i)
                                (~a i "\n"))))
 
   (test-begin
     #:name wait
-    (generic-functional-process-Q-empty? (wait (make-generic-functional-process-Q 2
+    (generic-functional-process-queue-empty? (wait (make-generic-functional-process-queue 2
                                                                                   (thunk empty)
                                                                                   (λ (q v ignored) (append q (list v)))
                                                                                   (λ (q) (list (rest q) (first q)))))))
@@ -324,7 +324,7 @@
     ;;
     ;; Now you call wait. It sweeps 1, and executes its will which enq's another
     ;; proc (4), which is waiting at first, but then sweep is called again,
-    ;; which decides to spawn 3 because only two procs are active, filling the Q
+    ;; which decides to spawn 3 because only two procs are active, filling the queue
     ;; back up to three active and that sweep call returns. But now we return to
     ;; the first sweep call, which says that it has a `free-spawning-capacity`
     ;; of 1 and pulls 4 off the waiting list and spawns a proc, making four
@@ -351,7 +351,7 @@
                                 (match i
                                   [2 (enq-proc! q* 4)]
                                   [else q*]))))))
-            (define q (for/fold ([q (make-generic-functional-process-Q 3
+            (define q (for/fold ([q (make-generic-functional-process-queue 3
                                                                        (thunk empty)
                                                                        (λ (q v ignored) (append q (list v)))
                                                                        (λ (q) (list (rest q) (first q))))])
@@ -360,13 +360,13 @@
             (define q* (wait q)))
     (extend-test-message
      (not (findf (>/c 3) (unbox active-history)))
-     "process-Q spawns active processes exceeding the process limit"))
+     "process-queue spawns active processes exceeding the process limit"))
 
   (test-begin
     #:name wait/long-running-procs
     (ignore
      (define done-vec (vector #f #f #f #f))
-     (define q (for/fold ([q (make-generic-functional-process-Q 2
+     (define q (for/fold ([q (make-generic-functional-process-queue 2
                                                                 (thunk empty)
                                                                 (λ (q v ignored) (append q (list v)))
                                                                 (λ (q) (list (rest q) (first q))))])
@@ -380,7 +380,7 @@
                                    (vector-set! done-vec i #t)
                                    q*))))))
             (define q/done (wait q)))
-    (generic-functional-process-Q-empty? q/done)
+    (generic-functional-process-queue-empty? q/done)
     (andmap identity (vector->list done-vec)))
 
   (test-begin
@@ -392,7 +392,7 @@
        (define position (unbox order-box))
        (set-box! order-box (add1 position))
        (vector-set! spawn-vec index position))
-     (define q (for/fold ([q (make-generic-functional-process-Q 2
+     (define q (for/fold ([q (make-generic-functional-process-queue 2
                                                                 (thunk empty)
                                                                 (λ (q v priority)
                                                                   (append q (list (list v priority))))
@@ -413,7 +413,7 @@
                                 [3 2]
                                 [else i]))))
      (define q/done (wait q)))
-    (generic-functional-process-Q-empty? q/done)
+    (generic-functional-process-queue-empty? q/done)
     (test-equal? spawn-vec
                  #(0 1 3 2)))
 
@@ -440,7 +440,7 @@
                            [0 (enq-proc q* 4 0)]
                            [else q*]))))
                     priority))
-     (define q (for/fold ([q (make-generic-functional-process-Q 2
+     (define q (for/fold ([q (make-generic-functional-process-queue 2
                                                                 (thunk empty)
                                                                 (λ (q v priority)
                                                                   (append q (list (list v priority))))
@@ -450,7 +450,7 @@
                          ([i (in-range 4)])
                  (enq-proc q i)))
      (define q/done (wait q)))
-    (generic-functional-process-Q-empty? q/done)
+    (generic-functional-process-queue-empty? q/done)
     (test-match spawn-vec
                 (vector 0
                         1
@@ -460,7 +460,7 @@
 
   (test-begin
     #:name process-timeouts
-    (ignore (define q (make-generic-functional-process-Q 2
+    (ignore (define q (make-generic-functional-process-queue 2
                                                          (thunk empty)
                                                          (λ (q v ignored) (append q (list v)))
                                                          (λ (q) (list (rest q) (first q)))
@@ -473,24 +473,24 @@
                    (port->string
                     (simple-process-info-stdout (process-info-data info)))))
                 (close-process-ports! info)
-                (process-Q-set-data q
+                (process-queue-set-data q
                                     (cons output
-                                          (process-Q-get-data q)))))
+                                          (process-queue-get-data q)))))
             (define q0 (enq-process q
                                     (λ _
                                       (simple-process "sleep 1; echo hi" will:record-output))))
             (define q1 (enq-process q0
                                     (λ _
                                       (simple-process "sleep 3; echo hi" will:record-output)))))
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
-    (test-= (generic-functional-process-Q-active-count q1) 2)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-active-count q1) 2)
 
     (ignore (define q1* (wait q1)))
-    (test-= (generic-functional-process-Q-waiting-count q1*) 0)
-    (test-= (generic-functional-process-Q-waiting-count q1) 0)
-    (test-= (generic-functional-process-Q-active-count q1*) 0)
-    (test-= (generic-functional-process-Q-active-count q1) 2)
-    (test-match (process-Q-get-data q1*)
+    (test-= (generic-functional-process-queue-waiting-count q1*) 0)
+    (test-= (generic-functional-process-queue-waiting-count q1) 0)
+    (test-= (generic-functional-process-queue-active-count q1*) 0)
+    (test-= (generic-functional-process-queue-active-count q1) 2)
+    (test-match (process-queue-get-data q1*)
                 (list-no-order "hi"
                                ;; empty bc killed
                                ""))))

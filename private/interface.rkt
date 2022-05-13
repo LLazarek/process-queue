@@ -1,43 +1,43 @@
 #lang at-exp racket
 
-(provide (except-out (struct-out process-Q)
-                     process-Q-empty?
-                     process-Q-enq
-                     process-Q-wait
-                     process-Q-active-count
-                     process-Q-waiting-count
-                     process-Q-data
-                     process-Q-get-data
-                     process-Q-set-data)
+(provide (except-out (struct-out process-queue)
+                     process-queue-empty?
+                     process-queue-enq
+                     process-queue-wait
+                     process-queue-active-count
+                     process-queue-waiting-count
+                     process-queue-data
+                     process-queue-get-data
+                     process-queue-set-data)
          (struct-out process-info)
          (contract-out
-          [rename short:process-Q-empty? process-Q-empty?
+          [rename short:process-queue-empty? process-queue-empty?
                   empty?/c]
-          [rename short:process-Q-enq process-Q-enq
+          [rename short:process-queue-enq process-queue-enq
                   enq/c]
-          [rename short:process-Q-wait process-Q-wait
+          [rename short:process-queue-wait process-queue-wait
                   wait/c]
-          [rename short:process-Q-active-count process-Q-active-count
+          [rename short:process-queue-active-count process-queue-active-count
                   active-count/c]
-          [rename short:process-Q-waiting-count process-Q-waiting-count
+          [rename short:process-queue-waiting-count process-queue-waiting-count
                   waiting-count/c]
-          [rename short:process-Q-get-data process-Q-get-data
+          [rename short:process-queue-get-data process-queue-get-data
                   get-data/c]
-          [rename short:process-Q-set-data process-Q-set-data
+          [rename short:process-queue-set-data process-queue-set-data
                   set-data/c]
 
-          [process-Q/c (contract? . -> . contract?)]
+          [process-queue/c (contract? . -> . contract?)]
 
           [process-will/c contract?]
           [process-info/c contract?]))
 
 (module+ internal
-  (provide process-Q-data))
+  (provide process-queue-data))
 
 (require syntax/parse/define
          (for-syntax racket/syntax))
 
-(struct process-Q (empty?
+(struct process-queue (empty?
                    enq
                    wait
                    active-count
@@ -48,26 +48,26 @@
                    data))
 
 (struct process-info (data ctl will) #:transparent)
-(define process-will/c (process-Q? process-info? . -> . process-Q?))
+(define process-will/c (process-queue? process-info? . -> . process-queue?))
 (define process-info/c
   (struct/dc process-info
              [data any/c]
              [ctl ((or/c 'status 'wait 'interrupt 'kill) . -> . any)]
              [will process-will/c]))
 
-(define empty?/c (process-Q? . -> . boolean?))
-(define enq/c ({process-Q? (-> process-info/c)}
+(define empty?/c (process-queue? . -> . boolean?))
+(define enq/c ({process-queue? (-> process-info/c)}
                {any/c}
                . ->* .
-               process-Q?))
-(define wait/c (process-Q? . -> . (and/c process-Q? process-Q-empty?)))
-(define active-count/c (process-Q? . -> . natural?))
-(define waiting-count/c (process-Q? . -> . natural?))
-(define get-data/c (process-Q? . -> . any/c))
-(define set-data/c (process-Q? any/c . -> . process-Q?))
+               process-queue?))
+(define wait/c (process-queue? . -> . (and/c process-queue? process-queue-empty?)))
+(define active-count/c (process-queue? . -> . natural?))
+(define waiting-count/c (process-queue? . -> . natural?))
+(define get-data/c (process-queue? . -> . any/c))
+(define set-data/c (process-queue? any/c . -> . process-queue?))
 
-(define (process-Q/c data/c)
-  (struct/dc process-Q
+(define (process-queue/c data/c)
+  (struct/dc process-queue
              [empty?         empty?/c]
              [enq            enq/c]
              [wait           wait/c]
@@ -81,7 +81,7 @@
 
 (define-simple-macro (define-method-shorthands prefix:id [field-name:id ...])
   #:with [accessor ...] (map (λ (field-name) (format-id this-syntax
-                                                        "process-Q-~a"
+                                                        "process-queue-~a"
                                                         field-name))
                              (syntax-e #'[field-name ...]))
   #:with [shorthand-id ...] (map (λ (accessor) (format-id this-syntax

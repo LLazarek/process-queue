@@ -1,12 +1,12 @@
 #lang at-exp racket
 
 (provide (contract-out
-          [make-process-Q
+          [make-process-queue
            ({(and/c natural? (>/c 0))}
             {any/c}
             . ->* .
-            (and/c process-Q?
-                   process-Q-empty?))])
+            (and/c process-queue?
+                   process-queue-empty?))])
          (all-from-out "private/interface.rkt"))
 
 (require "private/interface.rkt"
@@ -19,13 +19,13 @@
   (< (prioritized-process-priority a)
      (prioritized-process-priority b)))
 
-(define (make-process-Q process-limit
+(define (make-process-queue process-limit
                         [data-init #f]
                         ;; These timeouts are enforced on a best-effort basis.
                         ;; I.e. whenever we "notice" a process that has exceeded its timeout,
                         ;; we kill it. But no guarantees about how quickly we will notice.
                         #:kill-older-than [proc-timeout-secs #f])
-  (make-generic-functional-process-Q process-limit
+  (make-generic-functional-process-queue process-limit
                                      (λ _ (pfds:heap prioritized-process<))
                                      (λ (q v priority)
                                        (pfds:insert (prioritized-process v priority)
@@ -63,9 +63,9 @@
 
   (test-begin
     #:name basic
-    (ignore (define q (make-process-Q 1))
+    (ignore (define q (make-process-queue 1))
             (define will-called? (box #f))
-            (define q1 (process-Q-enq q
+            (define q1 (process-queue-enq q
                                     (λ _
                                       (simple-process
                                        "sleep 1; echo hi"
@@ -74,24 +74,24 @@
                                          (close-process-ports! info)
                                          q)))
                                     0)))
-    (test-= (process-Q-waiting-count q1) 0)
+    (test-= (process-queue-waiting-count q1) 0)
     (not (unbox will-called?))
-    (test-= (process-Q-active-count q1) 1)
+    (test-= (process-queue-active-count q1) 1)
 
-    (ignore (define q1* (process-Q-wait q1)))
-    (test-= (process-Q-waiting-count q1*) 0)
-    (test-= (process-Q-waiting-count q1) 0)
+    (ignore (define q1* (process-queue-wait q1)))
+    (test-= (process-queue-waiting-count q1*) 0)
+    (test-= (process-queue-waiting-count q1) 0)
     (unbox will-called?)
-    (test-= (process-Q-active-count q1*) 0)
-    (test-= (process-Q-active-count q1) 1))
+    (test-= (process-queue-active-count q1*) 0)
+    (test-= (process-queue-active-count q1) 1))
 
   (test-begin
     #:name will
-    (ignore (define q (make-process-Q 1))
+    (ignore (define q (make-process-queue 1))
             (define will-1-called? (box #f))
             (define will-2-called? (box #f))
             (define will-3-called? (box #f))
-            (define q1 (process-Q-enq q
+            (define q1 (process-queue-enq q
                                     (λ _
                                       (simple-process
                                        "sleep 2; echo hi"
@@ -100,14 +100,14 @@
                                          (close-process-ports! info)
                                          q*)))
                                     0))
-            (define q2 (process-Q-enq q1
+            (define q2 (process-queue-enq q1
                                     (λ _
                                       (simple-process
                                        "echo good"
                                        (λ (q* info)
                                          (set-box! will-2-called? #t)
                                          (close-process-ports! info)
-                                         (process-Q-enq
+                                         (process-queue-enq
                                           q*
                                           (λ _
                                             (simple-process
@@ -118,28 +118,28 @@
                                                q**)))
                                           0))))
                                     0)))
-    (test-= (process-Q-active-count q1) 1)
-    (test-= (process-Q-waiting-count q1) 0)
-    (test-= (process-Q-active-count q2) 1)
-    (test-= (process-Q-waiting-count q2) 1)
+    (test-= (process-queue-active-count q1) 1)
+    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-active-count q2) 1)
+    (test-= (process-queue-waiting-count q2) 1)
     (not (unbox will-1-called?))
     (not (unbox will-2-called?))
     (not (unbox will-3-called?))
 
-    (ignore (define q2* (process-Q-wait q2)))
-    (test-= (process-Q-waiting-count q1) 0)
-    (test-= (process-Q-waiting-count q2) 1)
-    (test-= (process-Q-waiting-count q2*) 0)
-    (test-= (process-Q-active-count q1) 1)
-    (test-= (process-Q-active-count q2) 1)
-    (test-= (process-Q-active-count q2*) 0)
+    (ignore (define q2* (process-queue-wait q2)))
+    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-waiting-count q2) 1)
+    (test-= (process-queue-waiting-count q2*) 0)
+    (test-= (process-queue-active-count q1) 1)
+    (test-= (process-queue-active-count q2) 1)
+    (test-= (process-queue-active-count q2*) 0)
     (unbox will-1-called?)
     (unbox will-2-called?)
     (unbox will-3-called?))
 
   (test-begin
     #:name a-little-complex
-    (ignore (define q (make-process-Q 2))
+    (ignore (define q (make-process-queue 2))
             (define wills-called? (vector #f #f #f #f #f))
             (define (will-for i)
               (λ (the-q* info)
@@ -153,7 +153,7 @@
                    (define i+ (match i
                                 [0 3]
                                 [2 4]))
-                   (process-Q-enq
+                   (process-queue-enq
                     the-q*
                     (λ _ (simple-process @~a{echo @i+}
                                          (will-for i+)))
@@ -162,27 +162,27 @@
             (define the-q
               (for/fold ([the-q q])
                         ([i (in-range 3)])
-                (process-Q-enq
+                (process-queue-enq
                  the-q
                  (λ _
                    (simple-process @~a{echo @i}
                                    (will-for i)))
                  0))))
-    (test-= (process-Q-active-count the-q) 2)
-    (test-= (process-Q-waiting-count the-q) 1)
+    (test-= (process-queue-active-count the-q) 2)
+    (test-= (process-queue-waiting-count the-q) 1)
 
-    (ignore (define the-q* (process-Q-wait the-q)))
-    (test-= (process-Q-active-count the-q) 2)
-    (test-= (process-Q-waiting-count the-q) 1)
-    (test-= (process-Q-active-count the-q*) 0)
-    (test-= (process-Q-waiting-count the-q*) 0)
+    (ignore (define the-q* (process-queue-wait the-q)))
+    (test-= (process-queue-active-count the-q) 2)
+    (test-= (process-queue-waiting-count the-q) 1)
+    (test-= (process-queue-active-count the-q*) 0)
+    (test-= (process-queue-waiting-count the-q*) 0)
     (for/and/test ([i (in-range 5)])
                   (test-equal? (vector-ref wills-called? i)
                                (~a i "\n"))))
 
   (test-begin
     #:name wait
-    (process-Q-empty? (process-Q-wait (make-process-Q 2))))
+    (process-queue-empty? (process-queue-wait (make-process-queue 2))))
 
   (test-begin
     #:name process-limit
@@ -211,7 +211,7 @@
                         (cons new-active
                               (unbox active-history))))
             (define (enq-proc! q i)
-              (process-Q-enq q
+              (process-queue-enq q
                            (λ _
                              (record-active-proc! add1)
                              (simple-process
@@ -225,21 +225,21 @@
                                   [2 (enq-proc! q* 4)]
                                   [else q*]))))
                            0))
-            (define q (for/fold ([q (make-process-Q 3)])
+            (define q (for/fold ([q (make-process-queue 3)])
                                 ([i (in-range 4)])
                         (enq-proc! q i)))
-            (define q* (process-Q-wait q)))
+            (define q* (process-queue-wait q)))
     (extend-test-message
      (not (findf (>/c 3) (unbox active-history)))
-     "process-Q spawns active processes exceeding the process limit"))
+     "process-queue spawns active processes exceeding the process limit"))
 
   (test-begin
     #:name wait/long-running-procs
     (ignore
      (define done-vec (vector #f #f #f #f))
-     (define q (for/fold ([q (make-process-Q 2)])
+     (define q (for/fold ([q (make-process-queue 2)])
                          ([i (in-range 4)])
-                 (process-Q-enq q
+                 (process-queue-enq q
                               (λ _
                                 (simple-process
                                  "sleep 10"
@@ -248,8 +248,8 @@
                                    (vector-set! done-vec i #t)
                                    q*)))
                               0)))
-            (define q/done (process-Q-wait q)))
-    (process-Q-empty? q/done)
+            (define q/done (process-queue-wait q)))
+    (process-queue-empty? q/done)
     (andmap identity (vector->list done-vec)))
 
   (test-begin
@@ -261,9 +261,9 @@
        (define position (unbox order-box))
        (set-box! order-box (add1 position))
        (vector-set! spawn-vec index position))
-     (define q (for/fold ([q (make-process-Q 2)])
+     (define q (for/fold ([q (make-process-queue 2)])
                          ([i (in-range 4)])
-                 (process-Q-enq q
+                 (process-queue-enq q
                               (λ _
                                 (record-spawned! i)
                                 (simple-process
@@ -275,8 +275,8 @@
                                 [2 3]
                                 [3 2]
                                 [else i]))))
-     (define q/done (process-Q-wait q)))
-    (process-Q-empty? q/done)
+     (define q/done (process-queue-wait q)))
+    (process-queue-empty? q/done)
     (test-equal? spawn-vec
                  #(0 1 3 2)))
 
@@ -290,7 +290,7 @@
        (set-box! order-box (add1 position))
        (vector-set! spawn-vec index position))
      (define (enq-proc q i [priority i])
-       (process-Q-enq q
+       (process-queue-enq q
                     (λ _
                       (record-spawned! i)
                       (simple-process
@@ -303,11 +303,11 @@
                            [0 (enq-proc q* 4 0)]
                            [else q*]))))
                     priority))
-     (define q (for/fold ([q (make-process-Q 2)])
+     (define q (for/fold ([q (make-process-queue 2)])
                          ([i (in-range 4)])
                  (enq-proc q i)))
-     (define q/done (process-Q-wait q)))
-    (process-Q-empty? q/done)
+     (define q/done (process-queue-wait q)))
+    (process-queue-empty? q/done)
     (test-match spawn-vec
                 (vector 0
                         1
@@ -317,7 +317,7 @@
 
   (test-begin
     #:name process-timeouts
-    (ignore (define q (make-process-Q 2 empty #:kill-older-than 2))
+    (ignore (define q (make-process-queue 2 empty #:kill-older-than 2))
             (define will:record-output
               (λ (q info)
                 (define output
@@ -325,26 +325,26 @@
                    (port->string
                     (simple-process-info-stdout (process-info-data info)))))
                 (close-process-ports! info)
-                (process-Q-set-data q
+                (process-queue-set-data q
                                     (cons output
-                                          (process-Q-get-data q)))))
-            (define q0 (process-Q-enq q
+                                          (process-queue-get-data q)))))
+            (define q0 (process-queue-enq q
                                     (λ _
                                       (simple-process "sleep 1; echo hi" will:record-output))
                                     0))
-            (define q1 (process-Q-enq q0
+            (define q1 (process-queue-enq q0
                                     (λ _
                                       (simple-process "sleep 3; echo hi" will:record-output))
                                     0)))
-    (test-= (process-Q-waiting-count q1) 0)
-    (test-= (process-Q-active-count q1) 2)
+    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-active-count q1) 2)
 
-    (ignore (define q1* (process-Q-wait q1)))
-    (test-= (process-Q-waiting-count q1*) 0)
-    (test-= (process-Q-waiting-count q1) 0)
-    (test-= (process-Q-active-count q1*) 0)
-    (test-= (process-Q-active-count q1) 2)
-    (test-match (process-Q-get-data q1*)
+    (ignore (define q1* (process-queue-wait q1)))
+    (test-= (process-queue-waiting-count q1*) 0)
+    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-active-count q1*) 0)
+    (test-= (process-queue-active-count q1) 2)
+    (test-match (process-queue-get-data q1*)
                 (list-no-order "hi"
                                ;; empty bc killed
                                ""))))
