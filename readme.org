@@ -1,0 +1,11 @@
+#+TITLE: process-queue
+
+A library for managing a queue of processes.
+See the docs for more.
+
+* Installation
+: raco pkg install https://github.com/LLazarek/process-queue
+
+* Docs
+: raco docs process-queue
+
