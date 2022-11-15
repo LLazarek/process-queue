@@ -15,27 +15,29 @@
 @title{process-queue}
 @author{Lukas Lazarek}
 
+@defmodule[process-queue]
+
 @section{Concepts}
 
 This library implements a queue to manage the execution of many OS level processes in parallel.
-As such, the primary abstractions of the library are the process and the queue.
 
 Processes are described by a function that launches something and returns information about the launched thing.
 Specifically, the function returns @racket[process-info], which packages together
 @itemlist[
 @item{a function to get the status of the process as it runs, in the style of @racket[process],}
 @item{a @tech{process will}, and}
-@item{some data to associate with the process}
+@item{data to associate with the process}
 ]
+
 The @deftech{process will} describes what to do with a process when it terminates.
 For instance, the will might collect the results of the process, perform cleanup, or even enqueue a new process to "follow up" on the one that just terminated.
 In detail, the will is a function accepting the current state of the process queue and the process's @racket[process-info] and producing an updated process queue.
 
-The process queue, then, is a data structure that keeps track of the processes actively running and those waiting to run.
+The process queue keeps track of the processes actively running and those waiting to run.
 The operations on the process queue add processes to the waiting list, manage process termination and will execution, and wait for all processes to terminate.
 
 For convenience, the process queue also has a field for storing client data.
-This is useful for storing information related to processes on the side, since the queue is accessible to process wills, for instance.
+This is useful for storing information related to processes on the side, since the queue is accessible to process wills.
 
 
 This library provides three implementations of this basic concept which all conform to the same @secref{interface}.
@@ -44,7 +46,6 @@ Second, @secref{priority} implements a priority-queue version in a functional st
 Finally, @secref{imperative} implements an imperative version of the basic process queue.
 
 @section[#:tag "interface"]{Process queue interface}
-@defmodule[process-queue]
 
 @defproc[(process-queue? [q any/c]) boolean?]{
 The predicate recognizing process queues.
@@ -99,7 +100,6 @@ The contract for process wills.
 
 
 @section[#:tag "functional"]{Functional process queue}
-@defmodule[process-queue]
 
 @defproc[(make-process-queue [active-limit positive-integer?]
 			     [data any/c #f]
