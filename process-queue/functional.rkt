@@ -10,7 +10,6 @@
          (all-from-out "private/interface.rkt"))
 
 (require "private/interface.rkt"
-         (submod "private/interface.rkt" internal)
          "private/generic-functional-process-queue.rkt"
          (prefix-in pfds: pfds/queue/bankers))
 
@@ -28,7 +27,7 @@
                                            (match-define (cons head tail)
                                              (pfds:head+tail q))
                                            (list tail head))
-                                         data-init
+                                         #:data data-init
                                          #:kill-older-than proc-timeout-secs))
 
 (module+ test
