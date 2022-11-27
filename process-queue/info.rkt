@@ -5,5 +5,5 @@
 (define deps '("base"
                "pfds"
                "data-lib"
-               "git://github.com/llazarek/ruinit.git"))
+               "ruinit"))
 (define scribblings '(("scribblings/process-queue.scrbl")))
