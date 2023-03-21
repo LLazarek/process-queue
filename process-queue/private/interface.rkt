@@ -32,7 +32,8 @@
           [process-info/c contract?]))
 
 (module+ internal
-  (provide process-queue-data))
+  (provide process-queue
+           process-queue-data))
 
 (require syntax/parse/define
          (for-syntax racket/syntax))

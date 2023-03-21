@@ -1,8 +1,8 @@
 #lang at-exp racket
 
 (define queue? any/c)
+(define seq any/c)
 (provide (contract-out
-          #:exists seq
           [make-generic-functional-process-queue
            ({(and/c natural? (>/c 0))
              (-> queue?)
