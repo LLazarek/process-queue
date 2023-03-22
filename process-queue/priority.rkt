@@ -3,7 +3,9 @@
 (provide (contract-out
           [make-process-queue
            ({(and/c natural? (>/c 0))}
-            {any/c (any/c any/c . -> . boolean?)}
+            {any/c
+             (any/c any/c . -> . boolean?)
+             #:kill-older-than (or/c positive-integer? #f)}
             . ->* .
             (and/c process-queue?
                    process-queue-empty?))])

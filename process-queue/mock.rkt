@@ -10,17 +10,17 @@
              #:active-count (-> process-queue? natural?)
              #:waiting-count (-> process-queue? natural?)
              #:get-data (-> process-queue? any/c)
-             #:set-data (-> process-queue? any/c process-queue?)}
+             #:set-data (-> process-queue? any/c process-queue?)
+             #:kill-older-than any/c}
             . ->* .
-            (and/c process-queue?
-                   process-queue-empty?))]
+            process-queue?)]
           [make-recording-process-queue
            ({(and/c natural? (>/c 0))
              #:record-in (and/c hash? (not/c immutable?))}
-            {any/c}
+            {any/c
+             #:kill-older-than any/c}
             . ->* .
-            (and/c process-queue?
-                   process-queue-empty?))])
+            process-queue?)])
          (all-from-out "private/interface.rkt"))
 
 (require "private/interface.rkt"
@@ -38,7 +38,8 @@
                             #:get-data [get-data process-queue-data]
                             #:set-data [set-data (λ (q new)
                                                    (struct-copy process-queue q
-                                                                [data new]))])
+                                                                [data new]))]
+                            #:kill-older-than [ignored #f])
   (process-queue empty?
                  enq
                  wait
@@ -51,12 +52,14 @@
 
 (define (make-recording-process-queue process-limit
                                       #:record-in h
-                                      [data-init #f])
+                                      [data-init #f]
+                                      #:kill-older-than [ignored #f])
   (for ([k (in-list '(empty? create enq wait active-count waiting-count))])
     (hash-set! h k 0))
   (define (add-call! name)
     (hash-update! h name add1 0))
-  (make-process-queue data-init
+  (make-process-queue process-limit
+                      data-init
                       #:empty? (λ (q) (add-call! 'empty?) #f)
                       #:enq (λ (q v . _) (add-call! 'enq) q)
                       #:wait (λ (q) (add-call! 'wait) q)
