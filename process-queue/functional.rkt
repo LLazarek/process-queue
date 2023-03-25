@@ -12,7 +12,7 @@
 
 (require "private/interface.rkt"
          "private/generic-functional-process-queue.rkt"
-         (prefix-in pfds: pfds/queue/bankers))
+         (prefix-in pfds: pfds/queue/physicists))
 
 (define (make-process-queue process-limit
                             [data-init #f]
