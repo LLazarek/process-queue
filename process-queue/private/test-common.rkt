@@ -232,7 +232,7 @@
                                             (simple-process "sleep 1; echo hi" will:record-output))))
             (define q1 (process-queue-enqueue q0
                                           (λ _
-                                            (simple-process "sleep 3; echo hi" will:record-output)))))
+                                            (simple-process "sleep 10; echo hi" will:record-output)))))
     (test-= (process-queue-waiting-count q1) 0)
     (test-= (process-queue-active-count q1) 2)
 
@@ -262,7 +262,7 @@
                                         (λ _
                                           (record-spawned! i)
                                           (simple-process
-                                           "echo done"
+                                           "sleep 5; echo done"
                                            (λ (q* info)
                                              (close-process-ports! info)
                                              q*)))
