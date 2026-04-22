@@ -121,7 +121,7 @@
                                 [2 4]))
                    (process-queue-enqueue
                     the-q*
-                    (λ _ (simple-process @~a{echo @i+}
+                    (λ _ (simple-process @~a{sleep 1; echo @i+}
                                          (will-for i+))))]
                   [else the-q*])))
             (define the-q
@@ -130,7 +130,7 @@
                 (process-queue-enqueue
                  the-q
                  (λ _
-                   (simple-process @~a{echo @i}
+                   (simple-process @~a{sleep 1; echo @i}
                                    (will-for i)))))))
     (test-= (process-queue-active-count the-q) 2)
     (test-= (process-queue-waiting-count the-q) 1)
@@ -428,7 +428,7 @@
                                 [2 4]))
                    (process-queue-enqueue
                     the-q*
-                    (λ _ (simple-process @~a{echo @i+}
+                    (λ _ (simple-process @~a{sleep 1; echo @i+}
                                          (will-for i+))))]
                   [else the-q*])))
             (define the-q
@@ -437,7 +437,7 @@
                 (process-queue-enqueue
                  the-q
                  (λ _
-                   (simple-process @~a{echo @i}
+                   (simple-process @~a{sleep 1; echo @i}
                                    (will-for i)))))))
     (test-eq? q the-q)
     (test-= (process-queue-active-count the-q) 2)
